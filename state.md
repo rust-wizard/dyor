@@ -41,4 +41,39 @@ For deeper reading:
 - Original ECMH paper: [ePrint 2018/1058](https://eprint.iacr.org/2018/1058).
 - Bitcoin context: Discussions on rolling UTXO hashes (e.g., Wuille's MuHash vs. ECMH). 
 
-If you meant something else by "ECMH" (e.g., a typo for "epoch" or "consensus mechanism" in Sui), feel free to clarify!
+Yes, the Sui network utilizes both a **state accumulator** and **ECMH** (Elliptic Curve Merkle Hash) to efficiently manage and prove its state. These are crucial components for enabling Sui's scalability and high-speed finality.
+
+---
+
+## 🌳 State Accumulator (Commitment Tree)
+
+The term **State Accumulator** on Sui refers to the core cryptographic data structure used to summarize the entire state of the network at any given moment, which is typically an **authenticated data structure** like a sparse Merkle tree.
+
+### Purpose
+* **Cryptographic State Commitment:** Its main job is to distill the vast amount of data in Sui's ledger—which includes all objects, transactions, and system data—into a single, small cryptographic hash: the **Accumulator Root**.
+* **Verification:** This root hash is the foundation for creating **proofs of existence** (a Merkle Proof) for any specific object or piece of data in the network's state.
+
+### Working Mechanism
+1.  **Data Organization:** Sui's state is object-centric, meaning the leaves of the accumulator tree represent the hashes of individual, versioned Sui objects.
+2.  **Tree Construction:** The hashes of the objects are combined in pairs, hashed again, and this process repeats up the tree until the single **Accumulator Root** is reached.
+3.  **Checkpoints:** The Accumulator Root is included in every **Checkpoint** signed by the validator set. By signing the checkpoint, the validators commit to this hash as the accurate summary of the network's state at that point in time.
+4.  **Proving Existence:** A light client can verify the existence and state of an object by requesting a **Merkle Proof** (a path of sibling hashes) from a full node. If re-computing the path with the object's hash results in the signed Checkpoint's Accumulator Root, the object's existence and state are cryptographically proven.
+
+---
+
+## 🔀 ECMH (Elliptic Curve Merkle Hash)
+
+**ECMH** (Elliptic Curve Merkle Hash) is a specific, modern, and highly efficient algorithm used by Sui to implement its state accumulator, replacing the traditional SHA-256-based Merkle Hash.
+
+### Purpose
+* **Efficiency:** The primary reason for using ECMH is to make the computation of the Accumulator Root and the generation of Merkle proofs significantly **faster** and **smaller** than traditional methods.
+* **State Accumulation:** It serves as the hash function for the commitment tree, allowing the entire state to be represented in a space-efficient manner.
+
+### Working Mechanism
+ECMH is based on elliptic curve cryptography, which allows for a more compact representation of data and proofs:
+1.  **Homomorphic Property:** ECMH leverages the mathematical properties of elliptic curves to accumulate information. Unlike a standard Merkle tree where a node's hash is simply $H(L || R)$, an ECMH commitment is often generated using a structure like $k_L \cdot G_L + k_R \cdot G_R$, where $k$ is the data and $G$ is a generator point on the curve. This can result in:
+    * **Smaller Proofs:** The resulting proofs often require fewer cryptographic elements to verify the inclusion of a leaf in the root.
+    * **Faster Verification:** Verification can be done more rapidly using curve arithmetic.
+2.  **State Commitment:** Sui uses a form of ECMH to compute the hash of the state in a way that is optimized for its object-centric and parallel execution architecture. This helps keep block (or checkpoint) processing fast and allows for horizontal scaling.
+
+In essence, the **State Accumulator** is the *concept* of the commitment tree, and **ECMH** is the high-performance *cryptographic primitive* that Sui uses to implement it.
