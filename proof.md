@@ -1,0 +1,1 @@
+An inclusion proof in ZK is a cryptographic guarantee, verified using zero-knowledge techniques, that a specific piece of data is part of a larger dataset without revealing any information about other data points in the set, or sometimes even the specific data point itself.
