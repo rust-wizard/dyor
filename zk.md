@@ -131,3 +131,59 @@ For light clients and cross-chain bridges aiming for the highest standard of sec
 * **T-GIP** ensures the math was done on the **right data at the right time in the right canonical state**.
 
 If Sui only provides CI without T-GIP, external systems are **trust-minimized** (they only trust Sui's consensus for state validity), but they are not **trustless** (they don't eliminate the need to trust the consensus entirely).
+
+---
+
+Are there any possible graceful approaches or solutions of promoting from trust-minimized to trustless?
+
+That is the final and most critical strategic question in the Sui/ZKVM discussion. The transition from **trust-minimized (relying on Sui's consensus for state validity)** to **trustless (cryptographically verifiable state)** requires a series of deliberate, phased engineering steps.
+
+Yes, there are several possible **graceful approaches** to achieve this promotion, primarily by gradually introducing and leveraging a global Merkle commitment structure.
+
+Here are the solutions, presented as a phased migration path:
+
+---
+
+### 🚀 Phase 1: Foundation (Trust-Minimized with CI)
+
+This phase represents the current or near-term state where ZKVM is used primarily for computation.
+
+#### 🎯 Goal: Proof of Correct Computation
+
+| Solution/Component | Description | Trust Level |
+| :--- | :--- | :--- |
+| **A. ZKVM for Execution Integrity (CI)** | Implement ZKVM to prove the **correctness** of MoveVM state transitions for a batch of transactions within a Checkpoint. | **Trust-Minimized:** Relies on the validator consensus to provide the correct input objects and to commit the correct outputs. |
+| **B. Object Digest (ECMH)** | Continue using ZK-friendly hashes (like ECMH) for $\text{Object Digest}$. | **Object Integrity:** Provides integrity *for the object content itself*, but not its inclusion in the global set. |
+| **C. Checkpoint Aggregation** | The **Checkpoint Digest** serves as the temporary, centralized root hash for a batch of transactions. | **Consensus Trust:** The bridge/light client still needs to trust the majority of validators to sign the correct Checkpoint Digest. |
+
+---
+
+### 🌳 Phase 2: Gradual State Commitment Introduction
+
+This phase involves introducing the JMT structure incrementally without changing the core live state storage.
+
+#### 🎯 Goal: Cryptographically Commit to the Object Reference Set
+
+| Solution/Component | Description | Trust Level Upgrade |
+| :--- | :--- | :--- |
+| **A. Introduce JMT for Checkpoints Only** | The JMT is *not* used for real-time transaction validation. Instead, a full **JMT State Root $R_k$** is calculated **once per Checkpoint $k$**, based on all finalized $\text{Object References}$ for that Checkpoint. | **Partial Trustless:** The $\text{Checkpoint Digest}$ now includes a cryptographically verifiable **JMT Root Hash ($R_k$)**, anchoring the entire set of $\text{Object References}$ at that point in time. |
+| **B. ZK Proofs with Historical JMT** | ZKVM generates a proof showing **Execution Integrity (CI)**, and additionally includes an *historical* Merkle Proof against the previous checkpoint's JMT root ($R_{k-1}$) to verify the input object's state. | **Improved Security:** The input state is anchored to a previous, globally committed Merkle root, significantly reducing the window of opportunity for validator collusion or state tampering. |
+| **C. Incremental State Commitment Storage** | The Sui storage system only saves the JMT's internal nodes that are **new** or **modified** since $R_{k-1}$. | **Graceful Performance:** Minimizes I/O cost; JMT updates happen in batched, sequential commitment rather than per-transaction. |
+
+---
+
+### ⛓️ Phase 3: Full Trustless State Proofs
+
+This phase achieves the desired **Trustless Global Inclusion Proof (T-GIP)** standard.
+
+#### 🎯 Goal: ZK Proof Commits to the Live JMT Root
+
+| Solution/Component | Description | Trust Level Achieved |
+| :--- | :--- | :--- |
+| **A. ZK-JMT Inclusion Proof Integration** | The ZKVM circuit is modified to perform an **$O(\log N)$ JMT verification** of all input objects' $\text{Object References}$ against the **latest canonical JMT Root $R_{\text{canonical}}$**.  | **Trustless T-GIP:** The ZK Proof now cryptographically guarantees that the inputs were valid and part of the last canonical state root, eliminating the state trust reliance on the validator set. |
+| **B. Output Commitment via JMT Delta** | The ZK Proof not only confirms execution but also commits to the **JMT Delta** (the list of new internal nodes and leaf nodes). This delta is then used to update $R_{\text{canonical}}$. | **Full Commitment:** The bridge/light client only needs to verify the ZK Proof $\pi$ and the new $R_{\text{new}}$ to confirm both computation and state transition, making the process fully trustless. |
+| **C. Separation of Historical and Live JMT** | Maintain two JMT instances: a smaller, frequently accessed **Live JMT** for the latest state commitment, and a larger **Historical JMT** for state archival. | **Performance and Security:** Ensures fast $O(\log N)$ lookups for transaction execution while preserving the integrity of all historical states. |
+
+### Conclusion
+
+The promotion from trust-minimized to trustless is a strategic shift involving the **gradual injection of a cryptographic commitment structure (JMT)**. The most graceful path involves using the **JMT initially for Checkpoint commitment only (Phase 2)**, giving the network time to manage the storage and performance impact, before integrating the full **$O(\log N)$ Merkle Proof verification into the ZKVM circuit (Phase 3)** to achieve true trustlessness.
